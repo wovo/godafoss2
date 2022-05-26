@@ -1,0 +1,3439 @@
+
+
+.. raw:: pdf
+
+    PageBreak coverPage
+
+
+.. image:: images/godafoss-waterfalls.jpg
+   :width: 1800
+   :alt: Godafoss waterfall
+
+Godafoss reference
+
+
+.. raw:: pdf
+
+    PageBreak oneColumn
+
+.. header:: Godafoss reference
+
+.. contents::
+
+.. footer:: page ###Page###
+
+.. sectnum::
+
+
+.. _background:
+
+
+
+.. raw:: pdf
+
+    PageBreak oneColumn
+
+*********************
+background processing
+*********************
+
+from basics/gf-background.hpp
+
+
+
+----------------------------------
+
+
+The background class provides a hook for run-to-completion style
+background processing.
+
+:: 
+
+  struct background : public not_copyable {
+     // This function will be called to do background work for its object.
+     virtual void work() = 0;
+  };
+  
+
+
+A class that needs background processing must inherit from background
+and implement the work function. This work function will be called
+when plain wait functions (the ones that allow background processing)
+are called.
+
+When an application contains background work,
+all plain wait functions can take longer than the specified time,
+up to the run time of the longest runtime of the work() functions.
+
+No background work will be done from wait calls made while
+a work() function is running.
+
+For all background jobs: be careful to preserve the object,
+or your servicing will end.
+This is not UB: the background destructor
+removes itself from the list of background jobs.
+
+When the application would terminate (exit from its main()),
+background::run() can be called instead, which will serve
+the background processing (it will never return).
+
+
+
+----------------------------------
+
+
+example
+*******
+
+:: 
+
+  #include "godafoss.hpp"
+  namespace gf  = godafoss;
+  using target  = gf::target<>;
+  using timing  = target::timing;
+  
+  struct background_work: gf::background {
+  
+     timing::ticks_type last = timing::now_ms();
+  
+     void work() override {
+        auto now = timing::now_ms();
+        if( now > last + 1'000 ){
+           gf::cout << "Another second has passed\n";
+        }
+     }
+  
+  };
+  
+  int main(){
+  
+     {
+        background_work annnoying;
+        for( int i = 0; i < 10; ++i ){
+           timing::wait_ms( 2'800 );
+           gf::cout << "[" << i << "] 2.8 seconds passed\n"
+        }
+        // annnoying is destructed here, so it will finally shut up
+     }
+  
+     for( int i = 0; i < 10; ++i ){
+        tinming::wait_ms( 2'100 );
+        gf::cout << "[" << i << "] 2.1 seconds passed\n"
+     }
+  
+  };
+  
+
+
+
+.. _is_box:
+
+
+.. _box:
+
+
+.. _is_pipe:
+
+
+.. _pipe:
+
+
+
+.. raw:: pdf
+
+    PageBreak oneColumn
+
+*********
+box, pipe
+*********
+
+from item/gf-item.hpp
+
+
+
+----------------------------------
+
+
+A box and a pipe are two kinds of item_.
+The difference is their semantics: a box behaves like a variable
+that holds a single value,
+a pipe behaves like a sequence of values.
+
+
+
+
+----------------------------------
+
+
+box
+***
+
+:: 
+
+  template< typename T, typename VT = T::value_type >
+  concept is_box = requires {
+        T::_box_marker;
+     }
+     && is_item< T, VT >;
+  
+
+:: 
+
+  template< typename VT >
+  struct box_root :
+     item_root< VT >
+  {
+     static const bool _box_marker = true;
+  };
+  
+
+
+A box is an item_ that has or contains (at any point in time) a single value.
+A box has value semantics:
+when you read_ from a box twice in rapid succession,
+you will get the same value.
+Writing to an item_ overwrites its old value in the box.
+
+
+
+
+----------------------------------
+
+
+pipe
+****
+
+:: 
+
+  template< typename T, typename VT = T::value_type >
+  concept is_pipe = requires {
+        T::_pipe_marker;
+     }
+     && is_item< T, VT >;
+  
+
+:: 
+
+  template< typename VT >
+  struct pipe_root :
+     item_root< VT >
+  {
+     static const bool _pipe_marker = true;
+  };
+  
+
+
+A pipe is an item_ that holds a sequence of values.
+A write_ to a pipe adds a new value the sequence.
+Hence all write_ to a stream matter, including
+repeated write_ of the same value.
+Reading from a pipe is destructive: it consumes the value that was
+read_ from the sequence.
+Writing to a pipe adds a value to the sequnce.
+
+
+.. _buffered:
+
+
+
+.. raw:: pdf
+
+    PageBreak oneColumn
+
+********
+buffered
+********
+
+from item/gf-item-buffered.hpp
+
+
+
+----------------------------------
+
+
+The buffered<> decorator buffers read_, write_ or direction operations,
+necessitating appropriate refresh_ or flush_ calls.
+
+:: 
+
+  template< typename T >
+  concept can_buffered =
+     is_item< T >;
+  
+
+:: 
+
+  template< can_buffered T >
+  struct buffered ... ;
+  
+
+
+
+.. _color<>:
+
+
+
+.. raw:: pdf
+
+    PageBreak oneColumn
+
+*****
+color
+*****
+
+from adts/gf-color.hpp
+
+
+
+----------------------------------
+
+
+The color type template represent a color.
+You wouldn't have guessed.
+The main use of these types is to specify the color of a pixel on a display.
+
+:: 
+
+  template<
+     int red_bits   = 8,
+     int green_bits = 8,
+     int blue_bits  = 8
+  >
+  struct color { ... }
+  
+
+
+Displays have various color depths (number of bits used to represent
+a color), so different uses call for different color types.
+The choice is between color resolution and memory usage.
+The depths are specified in bits for red, blue and green.
+The maximum is 8 bits each. This is also the default.
+
+
+
+
+----------------------------------
+
+
+predefined
+**********
+
+:: 
+
+  struct color_bw { ... }
+  using color_3  = color< 1, 1, 1 >;
+  using color_8  = color< 3, 3, 2 >;
+  using color_16 = color< 5, 6, 5 >;
+  using color_24 = color< 8, 8, 8 >;
+  
+
+
+The most common color depths are predefined:
+  - 1 bit (often used for black-or-white),
+  - 3 bits (one bit each for red, green and blue),
+  - 8 bits (3 bits each for red and green,
+2 bits for blue because the eye is less sensitive to blue),
+  - 16 bits (5 bits each for red and blue, 6 bits for green
+because the eye is most sensitive to green),
+  - 24 bits (one byte each for red, green and blue).
+
+
+
+
+----------------------------------
+
+
+constructors
+************
+
+
+:: 
+
+     constexpr color() { ... }
+  
+
+
+Colors have a default constructor.
+Don't rely on the value after default construction.
+
+:: 
+
+     template< is_color T >
+     constexpr color( T & rhs ): color(
+        rhs.red()   .of( red_max   ),
+        rhs.green() .of( green_max ),
+        rhs.blue()  .of( blue_max  ) ) { ... }
+  
+
+
+The copy constructor copies the fractions
+
+:: 
+
+  <missing>
+
+
+A color can be constructed from the three values
+for its read_, green and blue components.
+For each componet, the value is relative to the (unsigned) maximum that
+fits in the number of bits specified (by the template argument)
+for that color.
+
+
+
+
+
+
+----------------------------------
+
+
+random()
+********
+
+
+:: 
+
+     static color random(){ ... }
+  
+
+
+The static member function random() returns a random color.
+Each of the red, green and blue components has been selected by
+the simple random generator.
+
+
+
+
+
+----------------------------------
+
+
+getters
+*******
+
+
+:: 
+
+     constexpr base_type red() const { ... }
+     constexpr base_type green() const { ... }
+     constexpr base_type blue() const { ... }
+  
+
+
+The red(), geen() and blue() member functions return the
+red, green and blue components as a fraction.
+
+:: 
+
+  color< 8, 8, 8 >( 5, 10, 15 ).blue() == fraction< 255 >( 10 )
+
+
+
+
+.. _is_cto:
+
+
+.. _cto:
+
+
+
+.. raw:: pdf
+
+    PageBreak oneColumn
+
+***
+cto
+***
+
+from item/gf-item.hpp
+
+
+
+----------------------------------
+
+
+A cto is a Compile Time Object: it has the role of an object,
+but it is 'created' at compile time.
+It is implemented as a struct
+that has only static functions and static attributes.
+
+A cto always exists: it is just 'waiting' to be used.
+The features of a cto that are not used will be elimiated by the linker,
+Hence the mere presence of a cto in the source doen not increase
+the size of the executable image.
+
+A cto, being a type, is never instantiated.
+Instead, each cto provides an init() function.
+Before any of its functions or attributes are used at run-time,
+a cto must be initialized by calling its init() function.
+Failing to do so can cause unpredictable results.
+
+As a cto has only static functions and attributes
+it can be used directly, or the cto can be passed as
+a template parameter.
+
+For cto, and for each more specific cto, a concept exists
+(with the name of the cto), and a root struct from which all
+such cto's are derived (with _root appended to the name of the cto).
+
+The concept checks both for a specific marker, which serves
+no other purpose than to identify the specific cto, and for the
+features that the cto is obliged to offer.
+The concept is used to constrain templates that want to accept
+only a cto that implements a specific set of features.
+
+The root can be a plain struct, but it is often a template.
+For more complex cto's the CRTP pattern is used so the root can
+provide both base properties and enrichment based on the provided
+implementation.
+
+:: 
+
+  template< typename T >
+  concept is_cto = requires {
+     T::_cto_marker;
+     { T::init() } -> std::same_as< void >;
+  };
+  
+
+
+A cto has a static init() function that can be called without arguments.
+
+:: 
+
+  struct cto_root {
+     static const bool _cto_marker = true;
+  };
+  
+
+
+The struct cto_root is the root type of all cto's:
+all cto's inherit (in most cases indirectly) from this struct.
+
+
+
+
+.. raw:: pdf
+
+    PageBreak oneColumn
+
+*************
+date and time
+*************
+
+from adts/gf-date-and-time.hpp
+
+
+
+----------------------------------
+
+
+.. _date_and_time:
+
+
+:: 
+
+  struct date_and_time { ... };
+  
+
+
+This is a datatype for representing a date-and-time,
+intended for use with timekeeping chips or peripherals.
+
+
+
+----------------------------------
+
+
+attributes
+**********
+
+
+:: 
+
+     uint8_t seconds, minutes, hours;
+     uint8_t day, month, year;
+     uint8_t weekday;
+  
+
+
+The atributes of data_and_time are:
+   - seconds (0-59), minutes (0-59), hours (0-23)
+   - day (1..28/29/30/31), month (1-12), year (0-99)
+   - weekday (1..7)
+
+Fields that are unknow (some chips don't have a weekday ) are set to 0.
+
+
+
+----------------------------------
+
+
+non-member functions
+********************
+
+
+:: 
+
+  stream & operator<<( stream & lhs, by_const< date_and_time > dt ){ ... }
+  
+
+
+The operator<< prints a data_and_time in the format YY-MM-DD HH:MM.SS dW.
+
+
+.. _direct:
+
+
+
+.. raw:: pdf
+
+    PageBreak oneColumn
+
+******
+direct
+******
+
+from item/gf-item-direct.hpp
+
+
+
+----------------------------------
+
+
+The direct<> decorator accepts an item_ and decorates it by
+inserting the appropriate refresh_ or flush_
+before or after each
+read, write, or direction change operation,
+and replacing the refresh_ and flush_ by empty functions.
+
+The effect is that such a decorated item_ can be used without
+refresh_ or flush_ calls.
+
+:: 
+
+  template< typename T >
+  concept can_direct =
+     is_item< T >;
+  
+
+:: 
+
+  template< typename T >
+     requires can_direct< T >
+  struct direct< T > : ... ;
+  
+
+
+
+
+----------------------------------
+
+
+example
+*******
+
+:: 
+
+  #include "godafoss.hpp"
+  namespace gf      = godafoss;
+  using target      = gf::target<>;
+  using pin         = gf::pin_out_from< target::d13 >;
+  using direct_pin  = gf::direct< pin >;
+  
+  int main(){
+  
+     pin::init();
+  
+     // write, followed by an explicit flush
+     pin::write( 1 );
+     pin::flush();
+  
+     // write to a direct<> pin implies an implicit flush(),
+     // so no explicit fluish() is needed
+     direct_pin::write( 1 );
+  
+  };
+  
+
+
+
+.. _fraction<>:
+
+
+
+.. raw:: pdf
+
+    PageBreak oneColumn
+
+********
+fraction
+********
+
+from adts/gf-fraction.hpp
+
+
+
+----------------------------------
+
+
+:: 
+
+  template< typename T, T _maximum >
+  struct fraction {
+  
+     using data_type = T;
+  
+     static constexpr data_type maximum = _maximum;
+  
+     data_type raw_value = _maximum;
+  
+   };
+  
+
+
+A fraction is a type template that stores a raw_value,
+which is to be interpreted as a fraction of its maximum value.
+Think of a fraction as a percentage,
+or a factor in the range [ 0.0 .. 1.0 ].
+The type of the stored raw_value and the maximum value
+are template parameters.
+
+A fractions can be used to avoid the use of floating point arithmetic
+in a situation where otherwise a floating point
+value (in the range [ 0.0 .. 1.0 ]) would have been used.
+
+All fraction operartions are constexpr. Fraction values
+can be used as non-type template arguments.
+
+Examples of the use of fractions in the library:
+  - an ADC (Analaog to Digital Converter) returns a fraction
+  - the amount of red, green and blue in a color is expressed as a fraction
+  - the position of a servo motor is specified as a fraction
+
+
+
+
+----------------------------------
+
+
+constructors
+************
+
+:: 
+
+     constexpr fraction(){}
+  
+
+:: 
+
+     constexpr explicit fraction( T x ) ...
+  
+
+
+The constructor that acceptes a value is explicit,
+to avoid the mistake of passing a value
+where a fraction is required.
+
+:: 
+
+     template< typename V, V rhs_maximum > ...
+  
+
+
+The copy constructor copies the value from another fraction,
+which can have a different value type and/or a different maximum.
+The copying rescales relative to the maximum of the constructed fraction.
+
+:: 
+
+  // example
+  fraction< 10 > a( 5 );
+  fraction< 4 > b( a );
+  // now b == fraction< 4 >( 2 )
+
+
+
+
+
+----------------------------------
+
+
+assignment
+**********
+
+:: 
+
+     template< typename V, V rhs_maximum >
+     constexpr fraction & operator=( const fraction< V, rhs_maximum > & rhs ){ ... }
+  
+
+
+A fraction can be assigned from another fraction,
+which can have a different value type and/or a different maximum.
+As with the copy constructor, assignement rescales the value.
+
+:: 
+
+  // example
+  fraction< 10 > a;
+  a = fraction< 2 >( 1 );
+  // now a == fraction< 10 >( 5 );
+
+
+
+
+
+----------------------------------
+
+
+of()
+****
+
+:: 
+
+     template< typename V >
+     constexpr V of( V max ) const { ... }
+  
+
+:: 
+
+     template< typename V, typename W >
+     constexpr V of( V min, W max ) const { ... }
+  
+
+
+The of() functions return the argument, scaled according to the fraction.
+The one-argument version scales to the interval [ 0, max ],
+the two-argument version scales to the interval [ min, max ].
+
+:: 
+
+  // examples
+  fraction< 3 >( 1 ).of( 60 ) == 20
+  fraction< 8 >( 3 ).of( 10, 90 ) == 40
+
+
+
+
+
+----------------------------------
+
+
+negate
+******
+
+:: 
+
+     constexpr fraction operator - () const { ... }
+  
+
+
+The - operator returns the complements of the fraction:
+when the fraction is interpreted as a value v in the range [ 0.0 .. 1.0 ],
+it returns the fraction ( 1.0 - v ).
+
+:: 
+
+  // examples
+  fraction< 3 >( 1 ) == fraction< 3 >( 2 )
+  fraction< 8 >( 3 ) == fraction< 8 >( 5 )
+
+
+
+
+
+----------------------------------
+
+
+multiply
+********
+
+:: 
+
+     template< typename V >
+     constexpr fraction operator * ( V rhs ) const { ... }
+  
+
+:: 
+
+     template< typename V >
+     friend constexpr fraction operator * ( V lhs, fraction rhs ) { ... }
+  
+
+
+The multiplication operators multiply the fraction by the other parameter.
+
+:: 
+
+  // examplew
+  fraction< 6 >( 2 ) * 2 == fraction< 6 >( 4 )
+  3 * fraction< 6 >( 2 ) == fraction< 6 >( 6 )
+
+
+
+
+
+----------------------------------
+
+
+divide
+******
+
+:: 
+
+     template< typename V >
+     constexpr fraction operator / ( V rhs ) const { ... }
+  
+
+
+The division operator divides the fraction by the right hand side argument.
+
+:: 
+
+  // example
+  fraction< 10 >( 6 ) / 3  == fraction< 10 >( 2 )
+
+
+
+
+
+----------------------------------
+
+
+compare
+*******
+
+:: 
+
+     template< typename V >
+     constexpr bool operator == ( V rhs ) const { ... }
+  
+
+:: 
+
+     template< typename V >
+     constexpr bool operator != ( V rhs ) const { ... }
+  
+
+
+Fractions can be compared for equality and inequality.
+These comparisons take the maximum values of both sides into account.
+
+:: 
+
+  // examples
+  fraction< 10 >( 3 ) != fraction< 5 >( 3 )
+  fraction< 10 >( 6 ) == fraction< 5 >( 3 )
+
+
+
+
+
+----------------------------------
+
+
+print
+*****
+
+:: 
+
+     template< typename S >
+     friend S & operator << ( S & sink, const fraction & v ){ ... }
+  
+
+
+A fraction can be printed in the "f[R/M]" format, where R is the
+raw_value, and M is the maximum.
+
+
+.. _GODAFOSS_INLINE:
+
+
+
+.. raw:: pdf
+
+    PageBreak oneColumn
+
+*****************************
+function and class attributes
+*****************************
+
+from basics/gf-attributes.hpp
+
+
+
+----------------------------------
+
+
+:: 
+
+  #define GODAFOSS_INLINE ...
+  
+
+GODAFOSS_INLINE forces a function to be inline.
+It is used when the function body is very simple, for instance when
+it calls only one deeper function.
+This serves (only) to reduce code size and execution time.
+
+
+
+----------------------------------
+
+
+.. _GODAFOSS_NO_INLINE:
+
+:: 
+
+  #define GODAFOSS_NO_INLINE ...
+  
+
+GODAFOSS_NO_INLINE forces a function to be not inline.
+This is used to preserve low-level properties of a function,
+like the number of cylces taken by the function preable and postamble.
+This can be important to get predictable timing.
+
+
+
+----------------------------------
+
+
+.. _GODAFOSS_NO_RETURN:
+
+:: 
+
+  #define GODAFOSS_NO_RETURN ...
+  
+
+GODAFOSS_NORETURN indicates that a function will not return.
+It is used for functions that contain a never-ending loop.
+This can reduce code size.
+
+
+
+----------------------------------
+
+
+.. _GODAFOSS_IN_RAM:
+
+:: 
+
+  #define GODAFOSS_IN_RAM ...
+  
+
+GODAFOSS_IN_RAM places the function body in RAM (instead of FLASH).
+On some targets, this is necesarry to get predicatable timing,
+or faster execution.
+
+
+
+----------------------------------
+
+
+.. _GODAFOSS_RUN_ONCE:
+
+:: 
+
+  #define GODAFOSS_RUN_ONCE ...
+  
+
+GODAFOSS_RUN_ONCE causes the remainder of the function (the part after
+the macro) to be executed only once.
+
+
+
+----------------------------------
+
+
+.. _not_constructible:
+
+:: 
+
+  struct not_constructible { ... };
+  
+
+Inheriting from not_constructible makes it impossible to create objects
+of that class.
+
+
+
+----------------------------------
+
+
+.. _not_copyable:
+
+:: 
+
+  struct not_copyable { ... };
+  
+
+Inheriting from not_copyable makes it impossible to copy an object
+of that class.
+
+
+.. _hd44780_rs_e_d_s_timing:
+
+
+
+.. raw:: pdf
+
+    PageBreak oneColumn
+
+*******
+hd44780
+*******
+
+from chips/gf-hd44780.hpp
+
+
+
+----------------------------------
+
+
+The hd44780 template implements a charcater terminal
+on an hd44780 character lcd.
+
+:: 
+
+  template<
+     can_pin_out   rs,
+     can_pin_out   e,
+     can_port_out  port,
+     xy<>          size,
+     typename      timing
+  > using hd44780_rs_e_d_s_timing = { ... };
+  
+
+
+The rs, e and port must connect to the corresponding pins of the lcd.
+The lcd is used in 4-bit mode, so the port must connect to the
+d0..d3 of the lcd, the d4..d7 can be left unconnected.
+Only write_ to the lcd are used.
+The _r/w pin must be connected to ground.
+
+The size of the lcd must be specified
+in characters in the x and y direction.
+Common sizes are 16x1, 16x2, 20x2 and 20x4.
+
+The timing is used for the waits as required by the hd44780 datasheet.
+
+
+
+----------------------------------
+
+
+example
+*******
+
+
+bla blas
+
+
+
+.. raw:: pdf
+
+    PageBreak oneColumn
+
+*****
+hx711
+*****
+
+from chips/gf-hx711.hpp
+
+
+
+----------------------------------
+
+
+
+.. _hx711:
+
+
+This template implements an interface to the
+hx711 24-Bit Analog-to-Digital Converter (ADC).
+This chip is intended to interface to a load cell (force sensor).
+
+:: 
+
+  template<
+     can_pin_out  _sck,
+     can_pin_in   _dout,
+     typename            timing
+  >
+  struct hx711 {
+     enum class mode {
+        a_128  = 1,  // A inputs, gain 128
+        b_32   = 2,  // B inputs, gain 32
+        a_64   = 3   // A inputs, gain 64
+     };
+     static void init( mode m = mode::a_128 ){ ... }
+     static int32_t read(){ ... }
+     static void power_down(){ ... }
+     static void mode_set( mode m ){ ... }
+  };
+  
+
+
+The chip interface consist of a master-to-slave clock pin (sck),
+and a slave-to-master data pin (dout).
+
+The timing is used for the waits as required by the hx711 datasheet.
+
+The mode offers a choice between the A differential input_ with
+a gain of 128 or 64, and the B input_ with a gain of 32.
+The A input_ are meant to be used with a load cell.
+The datasheet suggest that the B input_ could be used to monitior
+the battery voltage.
+The mode is set at the initialization (the defauylt is a_128),
+and can be changed by the mode_set() function.
+
+The chip can be powered down. When a read_ is done the chip
+is first (automatically) powered up.
+
+
+.. _is_i2c_profile:
+
+
+.. _i2c_profile:
+
+
+
+.. raw:: pdf
+
+    PageBreak oneColumn
+
+************
+i2c profiles
+************
+
+from protocols/gf-i2c-profile.hpp
+
+
+
+----------------------------------
+
+
+:: 
+
+  template< typename T >
+  concept is_i2c_profile = requires {
+     T::_i2c_profile_marker;
+  
+  /*
+     { T::t_hd_sta  ::wait() } -> std::same_as< void >;
+     { T::t_low     ::wait() } -> std::same_as< void >;
+     { T::t_high    ::wait() } -> std::same_as< void >;
+     { T::t_su_dat  ::wait() } -> std::same_as< void >;
+     { T::t_su_sto  ::wait() } -> std::same_as< void >;
+     { T::t_buf     ::wait() } -> std::same_as< void >;
+  
+
+
+An i2c profile defines the timing of signals on an i2c bus.
+It is implemented as a template class that takes a timing
+as the template parameter, and provides the bus frequency and
+timings that must be met by the communication on the i2c bus.
+
+:: 
+
+  struct i2c_standard : i2c_profile_root {
+  
+     static constexpr int64_t frequency = 100'000;
+  
+     template< is_timing_wait timing >
+     struct intervals {
+        using t_hd_sta  = typename timing::ns< 4'000 >;
+        using t_low     = typename timing::ns< 4'700 >;
+        using t_high    = typename timing::ns< 4'000 >;
+        using t_su_dat  = typename timing::ns<   250 >;
+        using t_su_sto  = typename timing::ns< 4'000 >;
+        using t_buf     = typename timing::ns< 4'700 >;
+  
+
+:: 
+
+  struct i2c_fast : i2c_profile_root {
+  
+     static constexpr int64_t frequency = 400'000;
+  
+     template< is_timing_wait timing >
+     struct intervals {
+        using t_hd_sta  = typename timing::ns<   600 >;
+        using t_low     = typename timing::ns< 1'300 >;
+        using t_high    = typename timing::ns<   600 >;
+        using t_su_dat  = typename timing::ns<   100 >;
+        using t_su_sto  = typename timing::ns<   600 >;
+        using t_buf     = typename timing::ns< 1'300 >;
+  
+
+
+Conform the "I2C-bus specification and user manual,
+4 April 2014", UM10204.pdf, Table 10, p 48, two profiles
+are defined: i2c_standard (100 kHz) and i2c_fast (400 kHz).
+
+
+
+.. raw:: pdf
+
+    PageBreak oneColumn
+
+*********
+inherit_*
+*********
+
+from item/gf-item-inherit.hpp
+
+
+
+----------------------------------
+
+
+Adapters for selectively inheriting only the init,
+read_, write_, or direction functions of a item_.
+This is used or instance in the item_input_ adapter, to
+'pass' only the input_ functionality.
+
+
+.. _inherit_init:
+
+
+
+----------------------------------
+
+
+inherit_init
+************
+
+:: 
+
+  template< typename T >
+  struct inherit_init = ... ;
+  
+
+
+The inherit_init decorator inherits only the init() function of
+the decorated item_.
+
+
+.. _inherit_read:
+
+
+
+----------------------------------
+
+
+inherit_read
+************
+
+:: 
+
+  template< typename T >
+  struct inherit_read = ... ;
+  
+
+
+The inherit_read decorator inherits only the refresh_ and read_
+functions of the decorated item_.
+
+
+.. _inherit_write:
+
+
+
+----------------------------------
+
+
+inherit_write
+*************
+
+:: 
+
+  template< typename T >
+  struct inherit_write = ... ;
+  
+
+
+The inherit_read decorator inherits only the write_ and flush_
+functions of the decorated item_.
+
+
+.. _inherit_direction:
+
+
+
+----------------------------------
+
+
+inherit_direction
+*****************
+
+:: 
+
+  template< typename T >
+  struct inherit_direction = ... ;
+  
+
+
+The inherit_read decorator inherits only the
+direction_set_input_, direction_set_output_ and
+direction_flush_
+functions of the decorated item_.
+
+
+.. _is_input:
+
+
+.. _input:
+
+
+.. _is_output:
+
+
+.. _output:
+
+
+.. _is_input_output:
+
+
+.. _input_output:
+
+
+.. _is_duplex:
+
+
+.. _duplex:
+
+
+.. _is_simplex:
+
+
+.. _simplex:
+
+
+
+.. raw:: pdf
+
+    PageBreak oneColumn
+
+*************
+input, output
+*************
+
+from item/gf-item.hpp
+
+
+
+----------------------------------
+
+
+An item_ can be an input (from which you can read) and/or an output
+(to which you can write).
+
+An input or output item_ can be buffered_.
+For an output, this means that the effect of write operations
+can be postponed until the next flush call.
+For an input, this means that a read operation reflects
+the situation immediately before that last refresh call, or later.
+For immediate effect on a buffered_ item_, a read must be preceded
+by a refresh, and a write must be followed by a flush.
+
+The direct_ decorator creates an item_ for which the
+read() and write() operations have
+direct effect.
+
+An item_ can be an input, an output, or both.
+When it is an input you can read from it,
+when it is an output you can write to it.
+(In theory an item_ could be neither,
+but that would not be very useful.)
+
+When an item_ is both input and output it can be simplex
+(sometimes call half-duplex) or duplex.
+A duplex box_ can, at any time, be both read and written.
+
+
+.. _refresh:
+
+
+.. _read:
+
+
+
+----------------------------------
+
+
+input
+*****
+
+:: 
+
+  template< typename T, typename VT = T::value_type >
+  concept is_input = requires {
+        T::_input_marker;
+        { T::refresh() }  -> std::same_as< void >;
+        { T::read() }     -> std::same_as< typename T::value_type >;
+     }
+     && is_item< T, VT >;
+  
+
+:: 
+
+  template< typename VT >
+  struct input_root :
+     item_root< VT >
+  {
+     static const bool _input_marker = true;
+  };
+  
+
+
+A input is an item_ that provides a read() function that returns
+a value of the value_type_ of the item_.
+
+
+.. _write:
+
+
+.. _flush:
+
+
+
+----------------------------------
+
+
+output
+******
+
+:: 
+
+  template< typename T, typename VT = T::value_type >
+  concept is_output = requires (
+        typename T::value_type v
+     ){
+        T::_output_marker;
+        { T::write( v ) }  -> std::same_as< void >;
+        { T::flush()    }  -> std::same_as< void >;
+  
+
+:: 
+
+  template< typename VT >
+  struct output_root :
+     item_root< VT >
+  {
+     static const bool _output_marker = true;
+  };
+  
+
+
+An output is an item_ that provides a write() function that accepts
+a value of the value_type_ of the item_.
+
+
+
+----------------------------------
+
+
+input_output
+************
+
+:: 
+
+  template< typename T, typename VT = T::value_type >
+  concept is_input_output = requires (
+        typename T::value_type v
+     ){
+        T::_input_output_marker;
+        { T::refresh() }   -> std::same_as< void >;
+        { T::read() }      -> std::same_as< typename T::value_type >;
+        { T::write( v ) }  -> std::same_as< void >;
+        { T::flush()    }  -> std::same_as< void >;
+     }
+     && is_item< T, VT >;
+  
+
+:: 
+
+  template< typename VT >
+  struct input_output_root :
+     input_root< VT >,
+     output_root< VT >
+  {
+     static const bool _input_output_marker = true;
+  };
+  
+  
+
+
+An input_output is an item_ that is both an input and an output.
+
+
+
+----------------------------------
+
+
+direction
+*********
+
+
+A duplex item_ is an input_output that can function both as
+an input and as an output at the same time.
+
+:: 
+
+  template< typename T, typename VT = T::value_type >
+  concept is_duplex = requires {
+        T::_duplex_marker;
+     }
+     && is_input_output< T, VT >;
+  
+
+:: 
+
+  template< typename VT >
+  struct duplex_root :
+     input_output_root< VT >
+  {
+     static const bool _duplex_marker = true;
+  };
+  
+
+
+A simplex item_ is an input_output that has a current direction,
+which can be input or output.
+
+
+.. _direction_set_input:
+
+
+.. _direction_set_output:
+
+
+.. _direction_flush:
+
+:: 
+
+  template< typename T, typename VT = T::value_type >
+  concept is_simplex = requires {
+        T::_simplex_marker;
+        { T::direction_set_input() }   -> std::same_as< void >;
+        { T::direction_set_output() }  -> std::same_as< void >;
+        { T::direction_flush() }       -> std::same_as< void >;
+     }
+     && is_input_output< T, VT >;
+  
+
+:: 
+
+  template< typename VT >
+  struct simplex_root :
+     input_output_root< VT >
+  {
+     static const bool _simplex_marker = true;
+  };
+  
+
+
+The direction of a simplex item_ can be changed
+with a direction_set_input or direction_set_output call.
+For a successful read, the direction of a simplex box_ must be input.
+For a successful write, the direction of a simplex box_ must be output.
+Otherwise a write can have no effect at all, or have a delayed effect,
+and a read returns an unspecified value, and for a stream it can either
+consume the value or not.
+
+The effect of calling a direction_set... function can be delayed
+up to the next direction_flush() call.
+Like for read() and write(), direct_ can be used
+to get an immediate effect.
+
+
+.. _uint_bits:
+
+
+
+.. raw:: pdf
+
+    PageBreak oneColumn
+
+********************************
+ints specified by number of bits
+********************************
+
+from basics/gf-ints.hpp
+
+
+
+----------------------------------
+
+
+:: 
+
+  template< uint64_t n > struct uint_bits {
+     typedef typename ...
+        fast;
+     typedef typename ...
+        least;
+  };
+  
+
+
+uint_bits< N >::fast is the smallest 'fast'
+unsigned integer type that stores (at least) N bits.
+
+uint_bits< N >::least is the smallest (but not necesarrily fast)
+unsigned integer type that stores (at least) N bits.
+
+As both are unsigned they should be used for bit patterns, not for amounts.
+
+Note that both can be larger than requested, so they should not be used
+for modulo arithmetic (at least not without masking out excess bits).
+
+Use uint_bits< N >::fast for variables and parameters,
+use uint_bits< N >::least for arrays.
+
+
+
+----------------------------------
+
+
+example
+*******
+
+
+bla bla
+
+
+.. _invert:
+
+
+
+.. raw:: pdf
+
+    PageBreak oneColumn
+
+******
+invert
+******
+
+from item/gf-item-invert.hpp
+
+
+
+----------------------------------
+
+
+The invert<> decorator inverts the value written to or read_ from an item_.
+
+:: 
+
+  // invert is supported for an item that has an invert function
+  template< typename T >
+  concept can_invert = requires (
+        typename T::value_type v
+     ){
+        { T::invert( v ) } -> std::same_as< typename T::value_type >;
+     }
+  
+
+:: 
+
+  template< can_invert T >
+  struct invert< T > ... ;
+  
+
+
+
+.. _is_item:
+
+
+.. _item:
+
+
+
+.. raw:: pdf
+
+    PageBreak oneColumn
+
+****
+item
+****
+
+from item/gf-item.hpp
+
+
+
+----------------------------------
+
+
+An item is the basic cto_ from which most other cto_'s are derived.
+
+A summary of terms:
+   - cto_: a compile-time (static) object
+   - item: holds some data elements(s))
+   - box_: item that always holds one element of the data
+   - pipe_: item that holds a sequence of data elements
+   - input_: item that supports read_
+   - output_: item that supports write_
+   - input_output_: both input_ and output_
+   - duplex_: both input_ and output_ at the same time
+   - simplex_: both input_ and output_, but not at the same time
+
+:: 
+
+  template< typename T, typename VT = T::value_type >
+  concept is_item = requires {
+        T::_item_marker;
+        { typename T::value_type() } -> std::same_as< VT >;
+     }
+     && is_cto< T >;
+  
+
+
+An item is a cto_ that holds one (or, in case of a pipe_, more)
+data elements of a specific type.
+
+
+.. _value_type:
+
+:: 
+
+  template< typename VT >
+  struct item_root : cto_root {
+     static const bool _item_marker = true;
+     using value_type = VT;
+  };
+  
+
+
+All items inherit (in most cases indirectly) from the struct item_root.
+
+
+
+.. raw:: pdf
+
+    PageBreak oneColumn
+
+*************
+item adapters
+*************
+
+from item/gf-item-adapters.hpp
+
+
+
+----------------------------------
+
+
+These adapters adapt an item_ to be (only) an input_ item_,
+(only) an output_ item_,
+or (only) an input_output_ item_
+(in each case, if such adaption is possible).
+
+These adapters serve, of course, to adapt a given item_ to the
+adapted role, but also to ensure that the code that uses the adapted
+item_, doesn't use any features beyond the ones of the adapted role.
+
+
+
+.. _item_input:
+
+
+
+----------------------------------
+
+
+item_input
+**********
+
+
+:: 
+
+  template< typename T >
+  concept can_input =
+     is_input< T >
+     || is_input_output< T >;
+  
+
+:: 
+
+  template< can_input T >
+  struct item_input ... ;
+  
+
+
+The item_input<> decorator decorates an item_ to be an input_ item_,
+which is possible if the item_ satisfies the can_input concept,
+which requires the item_ to be either an input_ or an input_output_.
+
+
+
+.. _item_output:
+
+
+
+----------------------------------
+
+
+item_output
+***********
+
+
+:: 
+
+  template< typename T >
+  concept can_output =
+     is_output< T >
+     || is_input_output< T >;
+  
+
+:: 
+
+  template< can_output T >
+  struct item_output ... ;
+  
+
+
+The item_output<> decorator decorates an item_ to be an output_ item_,
+which is possible if the item_ satisfies the can_output concept,
+which requires the item_ to be either an input_ or an input_output_.
+
+
+
+.. _item_input_output:
+
+
+
+----------------------------------
+
+
+item_input_output
+*****************
+
+
+:: 
+
+  template< typename T >
+  concept can_input_output =
+     is_input_output< T >;
+  
+
+:: 
+
+  template< can_input_output T >
+  struct item_input_output ... ;
+  
+
+
+The item_input_output<> decorator decorates
+an item_ to be an input_output_ item_,
+which is possible if the item_ satisfies the can_input_output concept,
+which requires the item_ to an input_output_.
+
+
+.. _loop<>:
+
+
+
+.. raw:: pdf
+
+    PageBreak oneColumn
+
+****
+loop
+****
+
+from basics/gf-loop.hpp
+
+
+
+----------------------------------
+
+
+:: 
+
+  loop< N, unroll >([&] GODAFOSS_INLINE {
+     // loop body
+  });
+
+
+The loop type template repeats the loop body N times.
+The optional unroll parameter selects whether the repeating is
+implemented as the compiler thinks best, or by (forced) unrolling.
+The default is false (no forced unrolling).
+
+Unrolling increases code size. Unrolled code will probably run faster,
+but this effect can be neglectible.
+On a system with memory wait states and a memory read_ buffer a small
+non-unrolled loop that fits in the read_ buffer will probably be faster
+than the unrolled version. As always: measure, and check the generated
+assembly.
+
+
+
+
+----------------------------------
+
+
+examples
+********
+
+
+:: 
+
+  // example, the compiler chooses
+  loop< 8 >([&] GODAFOSS_INLINE {
+     mosi::write( ( d_out & 0x80 ) != 0 );
+     wait_half_period();
+     sclk::write( 1 );
+     wait_half_period();
+     d_out = d_out << 1;
+     sclk::write( 0 );
+  });
+
+
+:: 
+
+  // example, always unrolled
+  loop< 8, true >([&] GODAFOSS_INLINE {
+     mosi::write( ( d_out & 0x80 ) != 0 );
+     wait_half_period();
+     sclk::write( 1 );
+     wait_half_period();
+     d_out = d_out << 1;
+     sclk::write( 0 );
+  });
+
+
+These examples show the (simplified) inner loop of
+the-bit banged spi implementation.
+
+The table shows the effect of unrolling on the bouncing square demo
+on an Arduino Due (sam3xa cortex-m3 CPU) running at the maximum
+CPU clock frequency (84 Mhz, 5 wait states for Flash access),
+with an 128x64 pixel b/w SSD1306 OLED.
+
+- no inline: 1364 bytes code, one byte takes 2.3 us, flush_ takes 2.9 ms
+- inline: 1536 bytes code, one byte takes 1.4 us, flush_ takes 1.9 ms
+
+
+.. _no_inline:
+
+
+
+.. raw:: pdf
+
+    PageBreak oneColumn
+
+*********
+no_inline
+*********
+
+from item/gf-item-no-inline.hpp
+
+
+
+----------------------------------
+
+
+The no_inline<> item_ decorator creates an item_ for which all functions
+are not inline.
+
+This can be used as the outermost decorator around an item_ constructed
+from a chain of inheritances, in which the chain of function calls
+is all marked GODAFOSS_INLINE_.
+
+:: 
+
+  template< is_item T >
+  using no_inline = ... ;
+  
+
+
+
+
+.. raw:: pdf
+
+    PageBreak oneColumn
+
+****************************
+passing a readonly parameter
+****************************
+
+from basics/gf-passing.hpp
+
+
+
+----------------------------------
+
+
+:: 
+
+  // use by_const< T > when passing a T
+  template< typename T >
+  using by_const = ...
+  
+
+
+.. _by_const:
+
+
+The by_const< type > template is the preferred way to pass a
+const value of the type passed_type.
+This will be either a plain (by copy) const, or a const reference,
+depending (among other things) on the size of the type compared
+to a the size of a reference.
+
+:: 
+
+  #include "array"
+  #include "godafoss.hpp"
+  namespace gf  = godafoss;
+  
+  void GODAFOSS_NO_INLINE f1(
+     gf::by_const< char > p
+  ){ (void) p; }
+  
+  void GODAFOSS_NO_INLINE f2(
+     gf::by_const< std::array< int, 100 > > p
+  ){ (void) p; }
+  
+  int main(){
+  
+     // should probably be passed by value (copy)
+     f1( 'x' );
+  
+     // should be probably be passed by reference
+     f2( std::array< int, 100 >{ 0 } );
+  
+  };
+  
+
+
+
+
+.. raw:: pdf
+
+    PageBreak oneColumn
+
+************
+pin adapters
+************
+
+from modifiers/gf-modifiers-pins.hpp
+
+
+
+----------------------------------
+
+
+These adapters adapt a pin to be (only) an input_ pin,
+(only) an output_ pin,
+(only) an input_output_ pin, or (obly) an open collector pin.
+(in each case, if such adaptation is possible).
+
+
+
+These adapters serve, of course, to adapt a given pin to the
+adapted role, but also to ensure that the code that uses the adapted
+pin doesn't use any features beyond the ones of the adapted role.
+
+
+
+.. _pin_in:
+
+
+
+----------------------------------
+
+
+pin_in
+******
+
+
+:: 
+
+  template< typename T >
+  concept can_pin_in =
+        is_pin_in< T >
+     || is_pin_in_out< T >
+     || is_pin_oc< T >;
+  
+
+:: 
+
+  template< can_pin_in T > = ...;
+  
+
+
+The pin_in_ decorator decorates a pin to be an input_ pin,
+which is possible if the pin satisfies the can_input concept,
+which requires the pin to be either a pin_in_ or a pin_in_out_.
+
+
+
+.. _pin_out:
+
+
+
+----------------------------------
+
+
+pin_out
+*******
+
+
+:: 
+
+  template< typename T >
+  concept can_pin_out =
+        is_pin_out< T >
+     || is_pin_in_out< T >
+     || is_pin_oc< T >;
+  
+
+:: 
+
+  template< can_pin_out T > = ...;
+  
+
+
+The pin_out_ decorator decorates a pin to be an output_ pin,
+which is possible if the pin satisfies the can_output concept,
+which requires the pin to be either a pin_in_, a pin_in_out_,
+or a pin_oc_.
+
+Note that when a pin_oc_ is adapted to be used as pin_out_,
+a pull-up resistor is required in order for the pin to
+reach a high level.
+
+
+
+.. _pin_in_out:
+
+
+
+----------------------------------
+
+
+pin_in_out
+**********
+
+
+:: 
+
+  template< typename T >
+  concept can_pin_in_out =
+        is_pin_in_out< T >
+     || is_pin_oc< T >;
+  
+
+:: 
+
+  template< can_pin_in_out T  > = ...;
+  
+
+
+The pin_in_out_ decorator decorates
+a pin to be an input_output_ pin,
+which is possible if the pin satisfies the can_input_output concept,
+which requires the pin to a pin_in_out_, or a pin_oc_.
+
+Note that when a pin_oc_ is adapted to be used as pin_in_out_,
+a pull-up resistor is required in order for the pin to
+reach a high level.
+
+
+
+.. _pin_oc:
+
+
+
+----------------------------------
+
+
+pin_oc
+******
+
+
+:: 
+
+  template< typename T >
+  concept can_pin_oc =
+        is_pin_in_out< T >
+     || is_pin_oc< T >;
+  
+
+:: 
+
+  template< can_pin_oc T > = ...;
+  
+
+
+The pin_oc_ decorator decorates
+a pin to be an open collector pin,
+which is possible if the pin satisfies the can_input_output concept,
+which requires the pin to a pin_in_out_ or a pin_oc_.
+
+
+
+.. raw:: pdf
+
+    PageBreak oneColumn
+
+****
+pins
+****
+
+from pins/gf-pin.hpp
+
+
+
+----------------------------------
+
+
+A pin is a box_< bool > cto_ that is used to asbstract a
+GPIO (general-purpose input-output interface) pin on a
+micro-controller (or peripheral chip),
+or the more limited input-only, output-only,
+or open-collector version.
+
+When a pin represents a physical pin, 0 (or false) means a low voltage
+level (almost ground), and 1 (or true) means a high voltage level.
+
+When a pin represents a functionality, for instance 'enable',
+true (or 1) means that the function is enabled, and
+false (or 0) means that the function is not enabled (disabled).
+
+When the phyiscal pin is active-low, an invert_ decrorator
+is used to create the internal active-high representation of the pin.
+
+
+
+.. _is_pin_in:
+
+
+.. _pin_in:
+
+
+
+----------------------------------
+
+
+pin_in
+******
+
+:: 
+
+  template< typename T >
+  concept is_pin_in = requires {
+        T::_pin_in_marker;
+     }
+     && is_box< T, bool >
+     && is_input< T >;
+  
+  
+
+
+A pin_in_ is a box_< bool > cto_ that abstracts a single-pin read-only
+interface to the world outside the target chip.
+A typical use of a pin_in_ is to read_ a switch or pushbutton.
+
+:: 
+
+  struct pin_in_root :
+     box_root< bool >,
+     input_root< bool >
+  {
+     static constexpr bool _pin_in_marker = true;
+  };
+  
+
+
+All pin_in_ cto_'s inherit from pin_in_root.
+
+
+
+.. _pin_out:
+
+
+
+----------------------------------
+
+
+pin_out
+*******
+
+:: 
+
+  template< typename T >
+  concept is_pin_out = requires {
+        T::_pin_out_marker;
+     }
+     && is_box< T, bool >
+     && is_output< T >;
+  
+
+
+A pin_in_ is a box_< bool > cto_ that abstracts a single-pin write-only
+interface to the world outside the target chip.
+A typical use of a pin_in_ is to drive an LED.
+
+:: 
+
+  struct pin_out_root :
+     box_root< bool >,
+     output_root< bool >
+  {
+     static constexpr bool _pin_out_marker = true;
+  };
+  
+
+
+All pin_out_ cto_'s inherit from pin_out_root.
+
+
+
+.. _is_pin_in_out:
+
+
+.. _pin_in_out:
+
+
+
+----------------------------------
+
+
+pin_in_out
+**********
+
+:: 
+
+  template< typename T >
+  concept is_pin_in_out =
+   requires {
+        T::_pin_in_out_marker;
+     }
+     && is_box< T, bool >
+     && is_simplex< T >;
+  
+
+
+A pin_in_out_ is a box_< bool > cto_ that abstracts a single-pin simplex_
+read-write interface to the world outside the target chip.
+A pin_in_out_ is the most versatile of the pin types,
+because it can be used in any of the roles.
+In most cases a pin_in_out_ is used as either pin, a a pin_out_,
+or a pin_oc_, but some communication protocols
+require a pin to be switched between input_ and output_.
+
+:: 
+
+  struct pin_in_out_root :
+     box_root< bool >,
+     simplex_root< bool >
+  {
+     static constexpr bool _pin_in_out_marker = true;
+  };
+  
+
+
+All pin_in_ cto_'s inherit from pin_in_out_root.
+
+
+
+
+.. _is_pin_oc:
+
+
+.. _pin_oc:
+
+
+
+----------------------------------
+
+
+pin_oc
+******
+
+:: 
+
+  template< typename T >
+  concept is_pin_oc = requires {
+        T::_pin_oc_marker;
+     }
+     && is_box< T, bool >
+     && is_duplex< T >;
+  
+
+
+A pin_oc_ is a box_< bool > cto_ that abstracts a single-pin duplex_
+read-write interface to the world outside the target chip.
+The term oc means open-collector, refrerring to the
+(now somewhat outdated) way this type of pin can be implemented:
+the output_ stage has a transistor that can pull the pin low,
+but unlike a normal output_ pin it has no transistor to pull
+the pin high.
+
+Open-collector pins are used in various protocols like i2c and one-wire,
+where open-collector pins of more than one chip are connected
+to the same wire.
+Any chip can pull the write_ low. When no chip does so, a common
+pull-up resistor pulls the line low.
+This arrangement prevents electrical problems which would be caused
+when one chip drives the line low, and another drives it high.
+
+:: 
+
+  struct pin_oc_root :
+     box_root< bool >,
+     duplex_root< bool >
+  {
+     static constexpr bool _pin_oc_marker = true;
+  };
+  
+
+
+All pin_in_ cto_'s inherit from pin_oc_root.
+
+
+
+
+.. raw:: pdf
+
+    PageBreak oneColumn
+
+*************
+port adapters
+*************
+
+from modifiers/gf-modifiers-ports.hpp
+
+
+
+----------------------------------
+
+
+These adapters adapt a port to be (only) an input_ port,
+(only) an output_ port,
+(only) an input_output_ port, or (only) an open collector port.
+(in each case, if such adaptation is possible).
+
+The created pin has only the properties required for that pin:
+other properties of the source pin are not available via the created pin.
+The exception is pullup and pulldown features: those are
+available via the created pins.
+
+These adapters serve, of course, to adapt a given port to the
+adapted role, but also to ensure that the code that uses the adapted
+port doesn't use any features beyond the ones of the adapted role.
+
+
+
+.. _port_in:
+
+
+
+----------------------------------
+
+
+port_in
+*******
+
+
+:: 
+
+  template< typename T >
+  concept can_port_in =
+        is_port_in< T >
+     || is_port_in_out< T >
+     || is_port_oc< T >;
+  
+
+:: 
+
+  template< can_port_in T > = ...;
+  
+
+
+The port_in<> adapter creates an input_ port from a source port,
+which is possible if the source port satisfies the can_port_in concept,
+which requires it to be either a port_in, a port_in_out,
+or a port_oc.
+
+
+
+.. _port_out:
+
+
+
+----------------------------------
+
+
+port_out
+********
+
+
+:: 
+
+  template< typename T >
+  concept can_port_out =
+        is_port_out< T >
+     || is_port_in_out< T >
+     || is_port_oc< T >;
+  
+
+:: 
+
+  template< can_port_out T > = ...;
+  
+
+
+The port_out<> adapter creates an output_ port from a source port,
+which is possible if the source port satisfies the can_port_out concept,
+which requires it to be either a port_in, a port_in_out,
+or a port_oc.
+
+Note that when a port_oc is adapted to be used as port_out,
+pull-up resistors are required in order for the pins to
+reach a high level.
+
+
+
+.. _port_in_out:
+
+
+
+----------------------------------
+
+
+port_in_out
+***********
+
+
+:: 
+
+  template< typename T >
+  concept can_port_in_out =
+        is_port_in_out< T >
+     || is_port_oc< T >;
+  
+
+:: 
+
+  template< can_port_in_out T  > = ...;
+  
+
+
+The port_in_out<> adapter creates an input_output_ port from a source port,
+which is possible if the source port satisfies the can_port_in_out concept,
+which requires it to a port_in_out, or a port_oc.
+
+Note that when a port_oc is adapted to be used as port_in_out,
+pull-up resistors are required in order for the pins to
+reach a high level.
+
+
+
+.. _port_oc:
+
+
+
+----------------------------------
+
+
+port_oc
+*******
+
+
+:: 
+
+  template< typename T >
+  concept can_port_oc =
+     is_port_oc< T >;
+  
+
+:: 
+
+  template< is_port_oc T  > = ...;
+  
+
+
+The port_oc<> adapter creates an open collector port from a source port,
+which is possible if the source port satisfies the can_port_oc concept,
+which requires it to a port_oc.
+
+It is not possible to create a port_oc from an input-output port,
+because that would require control over the direction of the individual
+pins. An input-output provides (only) control over the direection of
+all pins at once.
+
+
+
+.. raw:: pdf
+
+    PageBreak oneColumn
+
+******
+random
+******
+
+from basics/gf-random.hpp
+
+
+
+----------------------------------
+
+
+This is simple 32-bit LCG random function, for demos and games.
+The random facilities of the standard library are not used because
+they eat up too much RAM. Do NOT use this for crypto work.
+
+The LCG used is the Microsoft Visual/Quick C/C++ variant as explained
+on https://en.wikipedia.org/wiki/Linear_congruential_generator, but
+using bits 8..23 rather than 16..30.
+
+
+
+----------------------------------
+
+
+.. _random16:
+
+:: 
+
+  uint16_t random16(){ ... }
+  
+
+The random16() function returns a 16-bit non-negative pseudo-random number.
+
+
+
+----------------------------------
+
+
+.. _random32:
+
+:: 
+
+  uint32_t random32(){ ... }
+  
+
+The random32() function returns a 32-bit non-negative pseudo-random number.
+
+
+
+----------------------------------
+
+
+.. _random_in_range:
+
+:: 
+
+  template< typename int_type >
+  int_type random_in_range(
+     by_const< int_type >first,
+     by_const< int_type > last
+  ){ ... }
+  
+
+The random_in_range() function returns a non-negative pseudo-random number
+in the range [ first .. last ].
+This number is calculated from a number generated by random32
+by modulo arithmetic.
+This is simple and fast, but the distribution is not ideal:
+the higher values in the range will be somewhat underrepresented.
+When the width of the range is much smaller than 2^32 this
+effect will be small.
+
+
+
+----------------------------------
+
+
+.. _random_seed:
+
+:: 
+
+  void random_seed( by_const< uint32_t > x ){ ... }
+  
+
+The random_seed() function sets the start for the value
+returned by subsequent random calls.
+It can be used to re-start a random sequence, or (when you have
+a truely random source) to start a truely random random sequence.
+
+
+
+.. raw:: pdf
+
+    PageBreak oneColumn
+
+*********************
+specific pin adapters
+*********************
+
+from pins/gf-pin-adapters.hpp
+
+
+
+----------------------------------
+
+
+These adapters create a pin cto_ from a specific (same or other) pin cto_.
+
+The created pin has only the properties required for that pin:
+other properties of the source pin are not available via the created pin.
+The exception is pullup and pulldown features: those are
+available via the created pins.
+
+These adapters can only be used when the source pin is know.
+For general use, the pin adapters that accept any (possible) source
+pin are more covenient.
+
+
+.. _pin_in_from_pin_in:
+
+:: 
+
+  template< is_pin_in T >
+  struct pin_in_from_pin_in : ... {};
+  
+
+
+
+.. _pin_in_from_pin_in_out:
+
+:: 
+
+  template< is_pin_in_out T >
+  struct pin_in_from_pin_in_out : ... {};
+  
+
+
+
+.. _pin_in_from_pin_oc:
+
+:: 
+
+  template< is_pin_oc T >
+  struct pin_in_from_pin_oc : ... {};
+  
+
+
+
+.. _pin_out_from_pin_out:
+
+:: 
+
+  template< is_pin_out T >
+  struct pin_out_from_pin_out : ... {};
+  
+
+
+
+.. _pin_out_from_pin_in_out:
+
+:: 
+
+  template< is_pin_in_out T >
+  struct pin_out_from_pin_in_out : ... {};
+  
+
+
+
+.. _pin_out_from_pin_oc:
+
+:: 
+
+  template< is_pin_oc T >
+  struct pin_out_from_pin_oc : ... {};
+  
+
+
+
+.. _pin_in_out_from_pin_in_out:
+
+:: 
+
+  template< is_pin_in_out T >
+  struct pin_in_out_from_pin_in_out : ... {};
+  
+
+
+
+.. _pin_in_out_from_pin_oc:
+
+:: 
+
+  template< is_pin_oc T >
+  struct pin_in_out_from_pin_oc : ... {};
+  
+
+
+
+.. _pin_oc_from_pin_oc:
+
+:: 
+
+  template< is_pin_oc T >
+  struct pin_oc_from_pin_oc : ... {};
+  
+
+
+
+
+.. raw:: pdf
+
+    PageBreak oneColumn
+
+**********************
+specific port adapters
+**********************
+
+from ports/gf-port-adapters.hpp
+
+
+
+----------------------------------
+
+
+These adapters create a port cto_ from a specific (same or other) port cto_.
+
+The created port has only the properties required for that port:
+other properties of the source port are not available via the created port.
+
+These adapters can only be used when the source port is know.
+For general use, the port adapters that accept any (possible) source
+port are more covenient.
+
+
+.. _port_in_from_port_in:
+
+:: 
+
+  template< is_port_in T >
+  struct port_in_from_port_in : ... {};
+  
+
+
+
+.. _port_in_from_port_in_out:
+
+:: 
+
+  template< is_port_in_out T >
+  struct port_in_from_port_in_out : ... {};
+  
+
+
+
+.. _port_in_from_port_oc:
+
+:: 
+
+  template< is_port_oc T >
+  struct port_in_from_port_oc : ... {};
+  
+
+
+
+.. _port_out_from_port_out:
+
+:: 
+
+  template< is_port_out T >
+  struct port_out_from_port_out : ... {};
+  
+
+
+
+.. _port_out_from_port_in_out:
+
+:: 
+
+  template< is_port_in_out T >
+  struct port_out_from_port_in_out : ... {};
+  
+
+
+
+.. _port_out_from_port_oc:
+
+:: 
+
+  template< is_port_oc T >
+  struct port_out_from_port_oc : ... {};
+  
+
+
+
+.. _port_in_out_from_port_in_out:
+
+:: 
+
+  template< is_port_in_out T >
+  struct port_in_out_from_port_in_out : ... {};
+  
+
+
+
+.. _port_in_out_from_port_oc:
+
+:: 
+
+  template< is_port_oc T >
+  struct port_in_out_from_port_oc : ... {};
+  
+
+
+
+.. _port_oc_from_port_oc:
+
+:: 
+
+  template< is_port_oc T >
+  struct port_oc_from_port_oc : ... {};
+  
+
+
+
+.. _is_static_duration:
+
+
+.. _static_duration:
+
+
+
+.. raw:: pdf
+
+    PageBreak oneColumn
+
+***************
+static_duration
+***************
+
+from timing/gf-timing-duration.hpp
+
+
+
+----------------------------------
+
+
+:: 
+
+  template< typename T >
+  concept is_static_duration = requires {
+        T::_static_duration_marker;
+        { T::wait() } -> std::same_as< void >;
+        { T::wait_busy() } -> std::same_as< void >;
+     } && is_cto< T  >;
+  
+
+
+A static_duration is a cto_ that represents a duration (amount of time).
+It provides two functions: wait() and wait_busy().
+
+A wait() call will return after at least the amount of time
+static_duration represents, but may well take longer due to background_
+work being done.
+
+A wait_busy() call will return after the amount of time
+static_duration represents, without further delay.
+For very small delays, a wait_busy() call might be
+implemented as a few in-lined machine instructions.
+
+
+.. _static_duration_root:
+
+:: 
+
+  struct static_duration_root : cto_root {
+     static const bool _static_duration_marker = true;
+  };
+  
+
+
+All static durations inherit from static_duration_root.
+
+
+.. _can_static_duration<>:
+
+:: 
+
+  template< typename T >
+  concept can_static_duration =
+     is_static_duration< T >;
+  
+
+
+The can_static_duration<> concept matches cto_'s that are acceptable to
+static_duration<>.
+
+
+.. _static_duration:
+
+:: 
+
+  template< can_static_duration T >
+  struct static_duration : static_duration_root { ... };
+  
+
+
+The static_duration<> adapter accepts a cto_ that matches
+the can_static_duraction<> concept, and yields a cto_ that is
+only a static_duration.
+
+
+
+.. raw:: pdf
+
+    PageBreak oneColumn
+
+******
+string
+******
+
+from adts/gf-string.hpp
+
+
+
+----------------------------------
+
+
+.. _string:
+
+:: 
+
+  template< std::size_t _maximum_length >
+  struct string { ... }
+  
+
+
+This is a fixed-maximum-size string.
+It offers an alternative to std::string and raw 0-terminated char arrays.
+It doesn't use the heap, and doesn't cause Undefined Behaviour with
+buffer overflows or out-of-bounds indexes.
+
+The functions that extend the string by appending characters do so
+up to the maximum length of the string. Appending characters beyond
+this maximum length has no effect: excess characters are ignored.
+
+The functions that access a character at an index (a position within
+the stored string) do so only when the index is valid. When the index
+is invalid, an undefined character (or for an lvalue,
+a reference to an undefined character) is returned.
+
+
+
+----------------------------------
+
+
+attributes
+**********
+
+
+:: 
+
+     using size_t = std::size_t;
+     static constexpr size_t maximum_length = _maximum_length;
+  
+
+The maxmimum_length is the maxiumum number of character that can be
+stored by the string.
+
+
+
+----------------------------------
+
+:: 
+
+     constexpr size_t length() const { ... }
+  
+
+The member function length() returns number of characters
+that are currently stored.
+
+
+
+----------------------------------
+
+:: 
+
+     constexpr bool valid_index( const size_t n ) const { ... }
+  
+
+The member function valid_index( n ) returns whether n is a valid index
+into the curretly stored string of characters.
+
+
+
+----------------------------------
+
+:: 
+
+     string & append( char c ){ ... }
+     string & operator+=( char c ){ ... }
+     string & operator<<( char c ){ ... }
+  
+
+The append function, the operator+= and the operator<< all append a
+single character to the string. If the string is already at its maximum
+length the character is ignored.
+
+
+
+.. raw:: pdf
+
+    PageBreak oneColumn
+
+********
+torsor<>
+********
+
+from adts/gf-torsor.hpp
+
+
+
+----------------------------------
+
+
+.. _torsor:
+
+:: 
+
+  template<
+     typename    _data_type,
+     _data_type  _zero
+  >
+  class torsor final {
+  public:
+  
+     // the type this torsor stores
+     using data_type = _data_type;
+  
+     // the base (zero) value of this torsor
+     static constexpr data_type zero = _zero;
+   ... \\n };
+  
+
+
+The torsor<> template expresses and enforces the difference between
+relative and absolute (anchored) values.
+Much like a compile-time unit system like boost::units,
+torsor<> uses the type system
+to eliminate erroneous operations at compile-time.
+It also helps to make interfaces simpler and more elegant
+by making the difference between relative and absolute
+values explicit in the type system.
+
+For a value type that denotes a ratio scale value (a value
+for which addition yields a value on the same scale), the
+torsor of that (base) type is the corresponding interval scale
+(anchored) type.
+
+The canonical example of a base and its torsor is
+*distance*
+(in the vector sense), and its torsor,
+*location.*
+
+Distances can be added or subtracted, which yields a distance.
+Locations can't be meaningfully added, but adding a location
+and a distance is meaningfull and yields a distance.
+Two locations can be subtracted, yielding a distance.
+
+Whether a scale is a torsor or not has nothing to do with its
+unit: in a unit system (like SI) a basic (ration)
+type and its torsor have the same unit.
+
+The operations on the torsor are limited to:
+- default- or copy-consructing a torsor
+- assigning a torsor (ssigns the base value)
+- adding or subtracting a base type value (yields a torsor value)
+- subtracting two torsors (yields a base type value)
+- comparing torsors (compares their base values)
+- printing a torsor (prints @ followed by its base type value)
+
+The base type T of a torsor must have a constructor that
+accepts a (single) 0 argument.
+
+All operations have the __attribute__((always_inline)),
+hence there is no need to bother with choosing for copy
+or reference parameter passing: all passing disappears.
+
+
+.. _xy:
+
+
+
+.. raw:: pdf
+
+    PageBreak oneColumn
+
+****
+xy<>
+****
+
+from adts/gf-xy.hpp
+
+
+
+----------------------------------
+
+
+:: 
+
+  template<
+     typename xy_value_type = int64_t,
+     xy_value_type zero = 0 >
+  struct xy final { ... };
+  
+
+
+The xy< xy_value_type > ADT class template is a pair of t
+wo xy_value_type values named x and y.
+It is used for distances in an xy plane, like on a window or terminal.
+For a location (carthesian coordinate) in an xy plane
+the torsor_< xy< T > > is used.
+
+The xy<> ADT supports
+- constructors: default (initializes to zero),
+from x and y values, copy (from another xy<>)
+- direct_ acces to the x and y values
+- an origin (zero) constant
+- operators on two xy<>'s: - + == !=
+- operators on an xy<> and a scalar: * /
+
+
+
+----------------------------------
+
+
+attributes
+**********
+
+
+:: 
+
+     using value_t = xy_value_type;
+     value_t x, y;
+  
+
+The x and y values are freely acessible.
+
+:: 
+
+     static constexpr auto origin = xy{};
+  
+
+
+The origin is the (0,0) value.
+
+
+
+----------------------------------
+
+
+methods
+*******
+
+
+:: 
+
+     constexpr xy():x{ zero }, y{ zero }{}
+  
+
+
+The default constructor intializes a and y to the zero value.
+
+:: 
+
+     constexpr xy( value_t x, value_t y ): x{ x }, y{ y }{}
+  
+
+
+The two-value constructor initializes the x and y from the supplied values.
+
+:: 
+
+     template< typename X >
+     constexpr xy( const xy< X > & rhs ): x( rhs.x ), y( rhs.y ) {}
+  
+
+
+An xy<> object can be constructed from an xy with the same or
+a different value type.
+
+:: 
+
+     template< typename V >
+  //      requires requires( V b ){ { x + b }; }   - GCC 10.0.1 ICE segfault
+        requires requires( xy_value_type x, V b ){ { x + b }; } ... }
+     template< typename V >
+        requires requires( xy_value_type x, V b ){ { x += b }; }
+     constexpr xy & operator+=( const xy< V > rhs ){ ... }
+  
+
+:: 
+
+     template< typename V >
+        requires requires( xy_value_type x, V b ){ { x - b }; }
+     constexpr auto operator-( const xy< V > rhs ) const { ... }
+  
+
+
+Two xy<> values can be added to or subtracted provided that
+their xy_value_types can be added or subtracted.
+The resulting xy<> gets the xy_value_type of that addition
+or subtraction.
+
+:: 
+
+     constexpr xy operator*( const value_t rhs ) const { ... }
+     constexpr xy operator/( const value_t rhs ) const { ... }
+  
+
+
+An xy<> can be multiplied or divided by a value, provided
+an xy_value_can be constructed from it.
+The result is an xy<> value of the same xy<>_value_type.
+
+:: 
+
+     template< typename V >
+        requires requires( xy_value_type a, V b ){
+           { a == b } -> std::same_as< bool >; }
+     constexpr bool operator==( const xy< V > & rhs ) const { ... }
+  
+
+:: 
+
+     template< typename V >
+        requires requires( xy_value_type lhs, V b ){
+           { x == b } -> std::same_as< bool >; }
+     constexpr bool operator!=( const xy & rhs ) const { ... }
+  
+
+
+An xy<> can be compared to another xy<> for equality or inequality,
+provided that their xy_value_types can be compared.
+
+
+
+----------------------------------
+
+
+non-member functions
+********************
+
+
+:: 
+
+  template< typename stream, typename value >
+     requires requires( stream & s, char c, value v ){
+        { s << 'c' } -> std::same_as< stream & >;
+        { s << v   } -> std::same_as< stream & >;
+     }
+  
+
+
